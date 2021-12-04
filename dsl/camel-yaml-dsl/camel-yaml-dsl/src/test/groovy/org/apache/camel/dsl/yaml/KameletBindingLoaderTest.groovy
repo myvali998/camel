@@ -47,17 +47,13 @@ class KameletBindingLoaderTest extends YamlTestSupport {
                       name: log-sink
             ''')
         then:
-            context.routeTemplateDefinitions.size() == 1
+            context.routeDefinitions.size() == 3
 
-            with (context.routeTemplateDefinitions[0]) {
-                id == 'timer-event-source'
-
-                with(route) {
-                    input.endpointUri == 'kamelet:timer-source'
-                    outputs.size() == 1
-                    with (outputs[0], ToDefinition) {
-                        endpointUri == 'kamelet:log-sink'
-                    }
+            with (context.routeDefinitions[0]) {
+                input.endpointUri == 'kamelet:timer-source?message=Hello+world%21'
+                outputs.size() == 1
+                with (outputs[0], ToDefinition) {
+                    endpointUri == 'kamelet:log-sink'
                 }
             }
     }
