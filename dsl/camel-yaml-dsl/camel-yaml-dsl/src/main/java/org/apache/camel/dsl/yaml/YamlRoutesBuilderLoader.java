@@ -24,8 +24,10 @@ import org.apache.camel.api.management.ManagedResource;
 import org.apache.camel.builder.ErrorHandlerBuilder;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.builder.RouteConfigurationBuilder;
+import org.apache.camel.dsl.yaml.common.YamlDeserializationContext;
 import org.apache.camel.dsl.yaml.common.YamlDeserializerSupport;
 import org.apache.camel.dsl.yaml.deserializers.OutputAwareFromDefinition;
+import org.apache.camel.model.FromDefinition;
 import org.apache.camel.model.OnExceptionDefinition;
 import org.apache.camel.model.RouteConfigurationDefinition;
 import org.apache.camel.model.RouteDefinition;
@@ -35,11 +37,15 @@ import org.apache.camel.model.rest.RestDefinition;
 import org.apache.camel.model.rest.VerbDefinition;
 import org.apache.camel.spi.CamelContextCustomizer;
 import org.apache.camel.spi.annotations.RoutesLoader;
+import org.snakeyaml.engine.v2.api.ConstructNode;
 import org.snakeyaml.engine.v2.nodes.MappingNode;
 import org.snakeyaml.engine.v2.nodes.Node;
 import org.snakeyaml.engine.v2.nodes.NodeTuple;
 import org.snakeyaml.engine.v2.nodes.NodeType;
+import org.snakeyaml.engine.v2.nodes.SequenceNode;
+import org.snakeyaml.engine.v2.nodes.Tag;
 
+import static org.apache.camel.dsl.yaml.common.YamlDeserializerSupport.asMappingNode;
 import static org.apache.camel.dsl.yaml.common.YamlDeserializerSupport.asSequenceNode;
 import static org.apache.camel.dsl.yaml.common.YamlDeserializerSupport.asText;
 import static org.apache.camel.dsl.yaml.common.YamlDeserializerSupport.nodeAt;
@@ -128,6 +134,9 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
             final MappingNode mn = YamlDeserializerSupport.asMappingNode(root);
             boolean camelk = anyTupleMatches(mn.getValue(), "apiVersion", "camel.apache.org/v1") &&
                     anyTupleMatches(mn.getValue(), "kind", "Integration");
+            // kamelet binding are still at v1alpha1
+            boolean binding = anyTupleMatches(mn.getValue(), "apiVersion", "camel.apache.org/v1alpha1") &&
+                    anyTupleMatches(mn.getValue(), "kind", "KameletBinding");
             if (camelk) {
                 Node routes = nodeAt(root, "/spec/flows");
                 if (routes == null) {
@@ -136,6 +145,27 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
                 if (routes != null) {
                     target = routes;
                 }
+            } else if (binding) {
+                MappingNode source = asMappingNode(nodeAt(root, "/spec/source/ref"));
+                MappingNode sink = asMappingNode(nodeAt(root, "/spec/sink/ref"));
+                if (source != null && sink != null) {
+                    boolean sourceKamelet = anyTupleMatches(source.getValue(), "kind", "Kamelet");
+                    boolean sinkKamelet = anyTupleMatches(sink.getValue(), "kind", "Kamelet");
+                    String from = extractTupleValue(source.getValue(), "name");
+                    String to = extractTupleValue(sink.getValue(), "name");
+                    if (sourceKamelet) {
+                        from = "kamelet:" + from;
+                    }
+                    if (sinkKamelet) {
+                        to = "kamelet:" + to;
+                    }
+                    // add directly
+                    System.out.println(from + " -> " + to);
+                    YamlDeserializationContext ydc = YamlDeserializerSupport.getDeserializationContext(source);
+                    Object route = ydc.resolve(RouteDefinition.class).construct(target);
+                    System.out.println(route);
+                }
+
             }
         }
 
@@ -154,6 +184,17 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
             }
         }
         return false;
+    }
+
+    private static String extractTupleValue(List<NodeTuple> list, String aKey) {
+        for (NodeTuple tuple : list) {
+            final String key = asText(tuple.getKeyNode());
+            final Node val = tuple.getValueNode();
+            if (Objects.equals(aKey, key) && NodeType.SCALAR.equals(val.getNodeType())) {
+                return asText(tuple.getValueNode());
+            }
+        }
+        return null;
     }
 
 }
