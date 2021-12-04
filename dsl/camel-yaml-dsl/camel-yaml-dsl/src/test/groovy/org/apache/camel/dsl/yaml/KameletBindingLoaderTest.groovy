@@ -25,7 +25,7 @@ class KameletBindingLoaderTest extends YamlTestSupport {
         context.start()
     }
 
-    def "kamelet binding"() {
+    def "kamelet binding from kamelet to kamelet"() {
         when:
             loadBindings('''
                 apiVersion: camel.apache.org/v1alpha1
@@ -56,6 +56,59 @@ class KameletBindingLoaderTest extends YamlTestSupport {
                     endpointUri == 'kamelet:log-sink'
                 }
             }
+    }
+
+    def "kamelet binding from uri to kamelet"() {
+        when:
+        loadBindings('''
+                apiVersion: camel.apache.org/v1alpha1
+                kind: KameletBinding
+                metadata:
+                  name: timer-event-source                  
+                spec:
+                  source:
+                    uri: timer:foo
+                  sink:
+                    ref:
+                      kind: Kamelet
+                      apiVersion: camel.apache.org/v1
+                      name: log-sink
+            ''')
+        then:
+        context.routeDefinitions.size() == 2
+
+        with (context.routeDefinitions[0]) {
+            input.endpointUri == 'timer:foo'
+            outputs.size() == 1
+            with (outputs[0], ToDefinition) {
+                endpointUri == 'kamelet:log-sink'
+            }
+        }
+    }
+
+    def "kamelet binding from uri to uri"() {
+        when:
+        loadBindings('''
+                apiVersion: camel.apache.org/v1alpha1
+                kind: KameletBinding
+                metadata:
+                  name: timer-event-source                  
+                spec:
+                  source:
+                    uri: timer:foo
+                  sink:
+                    uri: log:bar
+            ''')
+        then:
+        context.routeDefinitions.size() == 1
+
+        with (context.routeDefinitions[0]) {
+            input.endpointUri == 'timer:foo'
+            outputs.size() == 1
+            with (outputs[0], ToDefinition) {
+                endpointUri == 'log:bar'
+            }
+        }
     }
 
 }

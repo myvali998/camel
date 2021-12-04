@@ -151,15 +151,16 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
     private static Object preConfigureNode(Node root) throws Exception {
         Object target = root;
 
-        // check if the yaml is a camel-k yaml with embedded routes (called flow(s))
+        // check if the yaml is a camel-k yaml with embedded binding/routes (called flow(s))
         if (Objects.equals(root.getNodeType(), NodeType.MAPPING)) {
             final MappingNode mn = YamlDeserializerSupport.asMappingNode(root);
-            boolean camelk = anyTupleMatches(mn.getValue(), "apiVersion", "camel.apache.org/v1") &&
+            // camel-k: integration
+            boolean integration = anyTupleMatches(mn.getValue(), "apiVersion", "camel.apache.org/v1") &&
                     anyTupleMatches(mn.getValue(), "kind", "Integration");
-            // kamelet binding are still at v1alpha1
+            // camel-k: kamelet binding are still at v1alpha1
             boolean binding = anyTupleMatches(mn.getValue(), "apiVersion", "camel.apache.org/v1alpha1") &&
                     anyTupleMatches(mn.getValue(), "kind", "KameletBinding");
-            if (camelk) {
+            if (integration) {
                 Node routes = nodeAt(root, "/spec/flows");
                 if (routes == null) {
                     routes = nodeAt(root, "/spec/flow");
@@ -168,13 +169,23 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
                     target = routes;
                 }
             } else if (binding) {
-                MappingNode source = asMappingNode(nodeAt(root, "/spec/source/ref"));
-                MappingNode sink = asMappingNode(nodeAt(root, "/spec/sink/ref"));
+                // kamelet binding is a bit more complex, so grab the source and sink
+                // and map those to Camel route definitions
+                MappingNode source = asMappingNode(nodeAt(root, "/spec/source"));
+                MappingNode sink = asMappingNode(nodeAt(root, "/spec/sink"));
                 if (source != null && sink != null) {
-                    boolean sourceKamelet = anyTupleMatches(source.getValue(), "kind", "Kamelet");
-                    boolean sinkKamelet = anyTupleMatches(sink.getValue(), "kind", "Kamelet");
-                    String from = extractTupleValue(source.getValue(), "name");
-                    String to = extractTupleValue(sink.getValue(), "name");
+                    Node sourceRef = nodeAt(source, "/ref");
+                    if (sourceRef != null) {
+                        source = asMappingNode(sourceRef);
+                    }
+                    Node sinkRef = nodeAt(sink, "/ref");
+                    if (sinkRef != null) {
+                        sink = asMappingNode(sinkRef);
+                    }
+                    boolean sourceKamelet = sourceRef != null && anyTupleMatches(source.getValue(), "kind", "Kamelet");
+                    boolean sinkKamelet = sinkRef != null && anyTupleMatches(sink.getValue(), "kind", "Kamelet");
+                    String from = extractTupleValue(source.getValue(), sourceKamelet ? "name" : "uri");
+                    String to = extractTupleValue(sink.getValue(), sinkKamelet ? "name" : "uri");
                     if (sourceKamelet) {
                         from = "kamelet:" + from;
                     }
