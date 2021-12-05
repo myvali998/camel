@@ -16,7 +16,6 @@
  */
 package org.apache.camel.dsl.yaml;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -39,7 +38,6 @@ import org.apache.camel.spi.annotations.RoutesLoader;
 import org.apache.camel.util.URISupport;
 import org.snakeyaml.engine.v2.nodes.MappingNode;
 import org.snakeyaml.engine.v2.nodes.Node;
-import org.snakeyaml.engine.v2.nodes.NodeTuple;
 import org.snakeyaml.engine.v2.nodes.NodeType;
 import org.snakeyaml.engine.v2.nodes.SequenceNode;
 
@@ -54,6 +52,10 @@ import static org.apache.camel.dsl.yaml.common.YamlDeserializerSupport.nodeAt;
 public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
 
     public static final String EXTENSION = "yaml";
+
+    // API versions for Camel-K Integration and Kamelet Binding
+    private static final String INTEGRATION_VERSION = "camel.apache.org/v1";
+    private static final String BINDING_VERSION = "camel.apache.org/v1alpha1";
 
     public YamlRoutesBuilderLoader() {
         super(EXTENSION);
@@ -149,17 +151,17 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
         };
     }
 
-    private static Object preConfigureNode(Node root) throws Exception {
+    private Object preConfigureNode(Node root) throws Exception {
         Object target = root;
 
         // check if the yaml is a camel-k yaml with embedded binding/routes (called flow(s))
         if (Objects.equals(root.getNodeType(), NodeType.MAPPING)) {
             final MappingNode mn = YamlDeserializerSupport.asMappingNode(root);
             // camel-k: integration
-            boolean integration = anyTupleMatches(mn.getValue(), "apiVersion", "camel.apache.org/v1") &&
+            boolean integration = anyTupleMatches(mn.getValue(), "apiVersion", INTEGRATION_VERSION) &&
                     anyTupleMatches(mn.getValue(), "kind", "Integration");
             // camel-k: kamelet binding are still at v1alpha1
-            boolean binding = anyTupleMatches(mn.getValue(), "apiVersion", "camel.apache.org/v1alpha1") &&
+            boolean binding = anyTupleMatches(mn.getValue(), "apiVersion", BINDING_VERSION) &&
                     anyTupleMatches(mn.getValue(), "kind", "KameletBinding");
             if (integration) {
                 target = preConfigureIntegration(root, target);
@@ -174,7 +176,7 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
     /**
      * Camel K Integration file
      */
-    private static Object preConfigureIntegration(Node root, Object target) {
+    private Object preConfigureIntegration(Node root, Object target) {
         Node routes = nodeAt(root, "/spec/flows");
         if (routes == null) {
             routes = nodeAt(root, "/spec/flow");
@@ -188,7 +190,7 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
     /**
      * Camel K Kamelet Binding file
      */
-    private static Object preConfigureKameletBinding(Node root, Object target) throws Exception {
+    private Object preConfigureKameletBinding(Node root, Object target) throws Exception {
         final RouteDefinition route = new RouteDefinition();
         String routeId = asText(nodeAt(root, "/metadata/name"));
         if (routeId != null) {
@@ -227,7 +229,7 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
         return target;
     }
 
-    private static String extractCamelEndpointUri(MappingNode node) throws Exception {
+    private String extractCamelEndpointUri(MappingNode node) throws Exception {
         MappingNode mn = null;
         Node ref = nodeAt(node, "/ref");
         if (ref != null) {
@@ -252,31 +254,6 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
         }
 
         return kamelet ? "kamelet:" + uri : uri;
-    }
-
-    private static boolean anyTupleMatches(List<NodeTuple> list, String aKey, String aValue) {
-        for (NodeTuple tuple : list) {
-            final String key = asText(tuple.getKeyNode());
-            final Node val = tuple.getValueNode();
-            if (Objects.equals(aKey, key) && NodeType.SCALAR.equals(val.getNodeType())) {
-                String value = asText(tuple.getValueNode());
-                if (Objects.equals(aValue, value)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    private static String extractTupleValue(List<NodeTuple> list, String aKey) {
-        for (NodeTuple tuple : list) {
-            final String key = asText(tuple.getKeyNode());
-            final Node val = tuple.getValueNode();
-            if (Objects.equals(aKey, key) && NodeType.SCALAR.equals(val.getNodeType())) {
-                return asText(tuple.getValueNode());
-            }
-        }
-        return null;
     }
 
 }
