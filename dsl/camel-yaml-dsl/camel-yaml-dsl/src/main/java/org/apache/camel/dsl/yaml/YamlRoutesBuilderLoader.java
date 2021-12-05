@@ -161,61 +161,77 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
             boolean binding = anyTupleMatches(mn.getValue(), "apiVersion", "camel.apache.org/v1alpha1") &&
                     anyTupleMatches(mn.getValue(), "kind", "KameletBinding");
             if (integration) {
-                Node routes = nodeAt(root, "/spec/flows");
-                if (routes == null) {
-                    routes = nodeAt(root, "/spec/flow");
-                }
-                if (routes != null) {
-                    target = routes;
-                }
+                target = preConfigureIntegration(root, target);
             } else if (binding) {
-                // kamelet binding is a bit more complex, so grab the source and sink
-                // and map those to Camel route definitions
-                MappingNode source = asMappingNode(nodeAt(root, "/spec/source"));
-                MappingNode sink = asMappingNode(nodeAt(root, "/spec/sink"));
-                if (source != null && sink != null) {
-                    Node sourceRef = nodeAt(source, "/ref");
-                    if (sourceRef != null) {
-                        source = asMappingNode(sourceRef);
-                    }
-                    Node sinkRef = nodeAt(sink, "/ref");
-                    if (sinkRef != null) {
-                        sink = asMappingNode(sinkRef);
-                    }
-                    boolean sourceKamelet = sourceRef != null && anyTupleMatches(source.getValue(), "kind", "Kamelet");
-                    boolean sinkKamelet = sinkRef != null && anyTupleMatches(sink.getValue(), "kind", "Kamelet");
-                    String from = extractTupleValue(source.getValue(), sourceKamelet ? "name" : "uri");
-                    String to = extractTupleValue(sink.getValue(), sinkKamelet ? "name" : "uri");
-                    if (sourceKamelet) {
-                        from = "kamelet:" + from;
-                    }
-                    if (sinkKamelet) {
-                        to = "kamelet:" + to;
-                    }
-
-                    // source properties
-                    MappingNode sp = asMappingNode(nodeAt(root, "/spec/source/properties"));
-                    Map<String, Object> params = asMap(sp);
-                    if (params != null && !params.isEmpty()) {
-                        String query = URISupport.createQueryString(params);
-                        from = from + "?" + query;
-                    }
-                    // sink properties
-                    sp = asMappingNode(nodeAt(root, "/spec/sink/properties"));
-                    params = asMap(sp);
-                    if (params != null && !params.isEmpty()) {
-                        String query = URISupport.createQueryString(params);
-                        to = to + "?" + query;
-                    }
-
-                    // build kamelet binding as a route
-                    RouteDefinition route = new RouteDefinition();
-                    route.from(from).to(to);
-                    target = route;
-                }
+                target = preConfigureKameletBinding(root, target);
             }
         }
 
+        return target;
+    }
+
+    /**
+     * Camel K Integration file
+     */
+    private static Object preConfigureIntegration(Node root, Object target) {
+        Node routes = nodeAt(root, "/spec/flows");
+        if (routes == null) {
+            routes = nodeAt(root, "/spec/flow");
+        }
+        if (routes != null) {
+            target = routes;
+        }
+        return target;
+    }
+
+    /**
+     * Camel K Kamelet Binding file
+     */
+    private static Object preConfigureKameletBinding(Node root, Object target) throws Exception {
+        // kamelet binding is a bit more complex, so grab the source and sink
+        // and map those to Camel route definitions
+        MappingNode source = asMappingNode(nodeAt(root, "/spec/source"));
+        MappingNode sink = asMappingNode(nodeAt(root, "/spec/sink"));
+        if (source != null && sink != null) {
+            Node sourceRef = nodeAt(source, "/ref");
+            if (sourceRef != null) {
+                source = asMappingNode(sourceRef);
+            }
+            Node sinkRef = nodeAt(sink, "/ref");
+            if (sinkRef != null) {
+                sink = asMappingNode(sinkRef);
+            }
+            boolean sourceKamelet = sourceRef != null && anyTupleMatches(source.getValue(), "kind", "Kamelet");
+            boolean sinkKamelet = sinkRef != null && anyTupleMatches(sink.getValue(), "kind", "Kamelet");
+            String from = extractTupleValue(source.getValue(), sourceKamelet ? "name" : "uri");
+            String to = extractTupleValue(sink.getValue(), sinkKamelet ? "name" : "uri");
+            if (sourceKamelet) {
+                from = "kamelet:" + from;
+            }
+            if (sinkKamelet) {
+                to = "kamelet:" + to;
+            }
+
+            // source properties
+            MappingNode sp = asMappingNode(nodeAt(root, "/spec/source/properties"));
+            Map<String, Object> params = asMap(sp);
+            if (params != null && !params.isEmpty()) {
+                String query = URISupport.createQueryString(params);
+                from = from + "?" + query;
+            }
+            // sink properties
+            sp = asMappingNode(nodeAt(root, "/spec/sink/properties"));
+            params = asMap(sp);
+            if (params != null && !params.isEmpty()) {
+                String query = URISupport.createQueryString(params);
+                to = to + "?" + query;
+            }
+
+            // build kamelet binding as a route
+            RouteDefinition route = new RouteDefinition();
+            route.from(from).to(to);
+            target = route;
+        }
         return target;
     }
 
