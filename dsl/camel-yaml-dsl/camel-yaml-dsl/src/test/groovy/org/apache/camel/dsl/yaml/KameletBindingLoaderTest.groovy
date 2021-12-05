@@ -50,6 +50,7 @@ class KameletBindingLoaderTest extends YamlTestSupport {
             context.routeDefinitions.size() == 3
 
             with (context.routeDefinitions[0]) {
+                routeId == 'timer-event-source'
                 input.endpointUri == 'kamelet:timer-source?message=Hello+world%21'
                 outputs.size() == 1
                 with (outputs[0], ToDefinition) {
@@ -78,6 +79,7 @@ class KameletBindingLoaderTest extends YamlTestSupport {
         context.routeDefinitions.size() == 2
 
         with (context.routeDefinitions[0]) {
+            routeId == 'timer-event-source'
             input.endpointUri == 'timer:foo'
             outputs.size() == 1
             with (outputs[0], ToDefinition) {
@@ -103,6 +105,7 @@ class KameletBindingLoaderTest extends YamlTestSupport {
         context.routeDefinitions.size() == 1
 
         with (context.routeDefinitions[0]) {
+            routeId == 'timer-event-source'
             input.endpointUri == 'timer:foo'
             outputs.size() == 1
             with (outputs[0], ToDefinition) {

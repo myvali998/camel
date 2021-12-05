@@ -52,6 +52,7 @@ import static org.apache.camel.dsl.yaml.common.YamlDeserializerSupport.nodeAt;
 @ManagedResource(description = "Managed YAML RoutesBuilderLoader")
 @RoutesLoader(YamlRoutesBuilderLoader.EXTENSION)
 public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
+
     public static final String EXTENSION = "yaml";
 
     public YamlRoutesBuilderLoader() {
@@ -227,8 +228,13 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
                 to = to + "?" + query;
             }
 
+            String routeId = asText(nodeAt(root, "/metadata/name"));
+
             // build kamelet binding as a route
             RouteDefinition route = new RouteDefinition();
+            if (routeId != null) {
+                route.routeId(routeId);
+            }
             route.from(from).to(to);
             target = route;
         }
