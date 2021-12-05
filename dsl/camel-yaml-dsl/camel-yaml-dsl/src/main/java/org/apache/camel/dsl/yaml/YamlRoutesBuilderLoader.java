@@ -189,56 +189,69 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
      * Camel K Kamelet Binding file
      */
     private static Object preConfigureKameletBinding(Node root, Object target) throws Exception {
+        final RouteDefinition route = new RouteDefinition();
+        String routeId = asText(nodeAt(root, "/metadata/name"));
+        if (routeId != null) {
+            route.routeId(routeId);
+        }
+
         // kamelet binding is a bit more complex, so grab the source and sink
         // and map those to Camel route definitions
         MappingNode source = asMappingNode(nodeAt(root, "/spec/source"));
         MappingNode sink = asMappingNode(nodeAt(root, "/spec/sink"));
         if (source != null && sink != null) {
-            Node sourceRef = nodeAt(source, "/ref");
-            if (sourceRef != null) {
-                source = asMappingNode(sourceRef);
-            }
-            Node sinkRef = nodeAt(sink, "/ref");
-            if (sinkRef != null) {
-                sink = asMappingNode(sinkRef);
-            }
-            boolean sourceKamelet = sourceRef != null && anyTupleMatches(source.getValue(), "kind", "Kamelet");
-            boolean sinkKamelet = sinkRef != null && anyTupleMatches(sink.getValue(), "kind", "Kamelet");
-            String from = extractTupleValue(source.getValue(), sourceKamelet ? "name" : "uri");
-            String to = extractTupleValue(sink.getValue(), sinkKamelet ? "name" : "uri");
-            if (sourceKamelet) {
-                from = "kamelet:" + from;
-            }
-            if (sinkKamelet) {
-                to = "kamelet:" + to;
+            // source at the beginning (mandatory)
+            String from = extractCamelEndpointUri(source);
+            route.from(from);
+
+            // steps in the middle (optional)
+            Node steps = nodeAt(root, "/spec/steps");
+            if (steps != null) {
+                SequenceNode sn = asSequenceNode(steps);
+                for (Node node : sn.getValue()) {
+                    MappingNode step = asMappingNode(node);
+                    String uri = extractCamelEndpointUri(step);
+                    if (uri != null) {
+                        route.to(uri);
+                    }
+                }
             }
 
-            // source properties
-            MappingNode sp = asMappingNode(nodeAt(root, "/spec/source/properties"));
-            Map<String, Object> params = asMap(sp);
-            if (params != null && !params.isEmpty()) {
-                String query = URISupport.createQueryString(params);
-                from = from + "?" + query;
-            }
-            // sink properties
-            sp = asMappingNode(nodeAt(root, "/spec/sink/properties"));
-            params = asMap(sp);
-            if (params != null && !params.isEmpty()) {
-                String query = URISupport.createQueryString(params);
-                to = to + "?" + query;
-            }
+            // sink is at the end (mandatory)
+            String to = extractCamelEndpointUri(sink);
+            route.to(to);
 
-            String routeId = asText(nodeAt(root, "/metadata/name"));
-
-            // build kamelet binding as a route
-            RouteDefinition route = new RouteDefinition();
-            if (routeId != null) {
-                route.routeId(routeId);
-            }
-            route.from(from).to(to);
             target = route;
         }
+
         return target;
+    }
+
+    private static String extractCamelEndpointUri(MappingNode node) throws Exception {
+        MappingNode mn = null;
+        Node ref = nodeAt(node, "/ref");
+        if (ref != null) {
+            mn = asMappingNode(ref);
+        }
+
+        // extract uri is different if kamelet or not
+        boolean kamelet = mn != null && anyTupleMatches(mn.getValue(), "kind", "Kamelet");
+        String uri;
+        if (kamelet) {
+            uri = extractTupleValue(mn.getValue(), "name");
+        } else {
+            uri = extractTupleValue(node.getValue(), "uri");
+        }
+
+        // properties
+        MappingNode prop = asMappingNode(nodeAt(node, "/properties"));
+        Map<String, Object> params = asMap(prop);
+        if (params != null && !params.isEmpty()) {
+            String query = URISupport.createQueryString(params);
+            uri = uri + "?" + query;
+        }
+
+        return kamelet ? "kamelet:" + uri : uri;
     }
 
     private static boolean anyTupleMatches(List<NodeTuple> list, String aKey, String aValue) {

@@ -114,4 +114,131 @@ class KameletBindingLoaderTest extends YamlTestSupport {
         }
     }
 
+    def "kamelet binding steps"() {
+        when:
+        loadBindings('''
+            apiVersion: camel.apache.org/v1alpha1
+            kind: KameletBinding
+            metadata:
+              name: steps-binding
+            spec:
+              source:
+                ref:
+                  kind: Kamelet
+                  apiVersion: camel.apache.org/v1alpha1
+                  name: timer-source
+                properties:
+                  message: "Camel"
+              steps:
+              - ref:
+                  kind: Kamelet
+                  apiVersion: camel.apache.org/v1alpha1
+                  name: prefix-action
+                properties:
+                  prefix: "Apache"
+              - ref:
+                  kind: Kamelet
+                  apiVersion: camel.apache.org/v1alpha1
+                  name: prefix-action
+                properties:
+                  prefix: "Hello"
+              sink:
+                uri: log:info
+                ''')
+        then:
+        context.routeDefinitions.size() == 4
+
+        with (context.routeDefinitions[0]) {
+            routeId == 'steps-binding'
+            input.endpointUri == 'kamelet:timer-source?message=Camel'
+            outputs.size() == 3
+            with (outputs[2], ToDefinition) {
+                endpointUri == 'log:info'
+            }
+        }
+    }
+
+    def "kamelet binding steps kamelet uri"() {
+        when:
+        loadBindings('''
+            apiVersion: camel.apache.org/v1alpha1
+            kind: KameletBinding
+            metadata:
+              name: steps-binding
+            spec:
+              source:
+                ref:
+                  kind: Kamelet
+                  apiVersion: camel.apache.org/v1alpha1
+                  name: timer-source
+                properties:
+                  message: "Camel"
+              steps:
+              - ref:
+                  kind: Kamelet
+                  apiVersion: camel.apache.org/v1alpha1
+                  name: prefix-action
+                properties:
+                  prefix: "Apache"
+              - uri: mock:dummy
+              sink:
+                uri: log:info
+                ''')
+        then:
+        context.routeDefinitions.size() == 3
+
+        with (context.routeDefinitions[0]) {
+            routeId == 'steps-binding'
+            input.endpointUri == 'kamelet:timer-source?message=Camel'
+            outputs.size() == 3
+            with (outputs[1], ToDefinition) {
+                endpointUri == 'mock:dummy'
+            }
+            with (outputs[2], ToDefinition) {
+                endpointUri == 'log:info'
+            }
+        }
+    }
+
+    def "kamelet binding steps uri uri"() {
+        when:
+        loadBindings('''
+            apiVersion: camel.apache.org/v1alpha1
+            kind: KameletBinding
+            metadata:
+              name: steps-binding
+            spec:
+              source:
+                ref:
+                  kind: Kamelet
+                  apiVersion: camel.apache.org/v1alpha1
+                  name: timer-source
+                properties:
+                  message: "Camel"
+              steps:
+              - uri: mock:dummy
+              - uri: mock:dummy2
+              sink:
+                uri: log:info
+                ''')
+        then:
+        context.routeDefinitions.size() == 2
+
+        with (context.routeDefinitions[0]) {
+            routeId == 'steps-binding'
+            input.endpointUri == 'kamelet:timer-source?message=Camel'
+            outputs.size() == 3
+            with (outputs[0], ToDefinition) {
+                endpointUri == 'mock:dummy'
+            }
+            with (outputs[1], ToDefinition) {
+                endpointUri == 'mock:dummy2'
+            }
+            with (outputs[2], ToDefinition) {
+                endpointUri == 'log:info'
+            }
+        }
+    }
+
+
 }
