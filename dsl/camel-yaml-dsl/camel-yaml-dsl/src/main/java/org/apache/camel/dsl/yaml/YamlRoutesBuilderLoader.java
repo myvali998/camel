@@ -56,6 +56,7 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
     // API versions for Camel-K Integration and Kamelet Binding
     private static final String INTEGRATION_VERSION = "camel.apache.org/v1";
     private static final String BINDING_VERSION = "camel.apache.org/v1alpha1";
+    private static final String STRIMZI_VERSION = "kafka.strimzi.io/v1beta1";
 
     public YamlRoutesBuilderLoader() {
         super(EXTENSION);
@@ -238,8 +239,10 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
 
         // extract uri is different if kamelet or not
         boolean kamelet = mn != null && anyTupleMatches(mn.getValue(), "kind", "Kamelet");
+        boolean strimzi = !kamelet && mn != null && anyTupleMatches(mn.getValue(), "apiVersion", STRIMZI_VERSION)
+                && anyTupleMatches(mn.getValue(), "kind", "KafkaTopic");
         String uri;
-        if (kamelet) {
+        if (kamelet || strimzi) {
             uri = extractTupleValue(mn.getValue(), "name");
         } else {
             uri = extractTupleValue(node.getValue(), "uri");
@@ -253,7 +256,13 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
             uri = uri + "?" + query;
         }
 
-        return kamelet ? "kamelet:" + uri : uri;
+        if (kamelet) {
+            return "kamelet:" + uri;
+        } else if (strimzi) {
+            return "kafka:" + uri;
+        } else {
+            return uri;
+        }
     }
 
 }

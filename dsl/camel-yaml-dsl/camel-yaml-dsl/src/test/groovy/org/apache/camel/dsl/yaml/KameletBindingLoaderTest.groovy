@@ -240,5 +240,42 @@ class KameletBindingLoaderTest extends YamlTestSupport {
         }
     }
 
+    def "kamelet binding from kamelet to strimzi"() {
+        when:
+
+        // stub kafka for testing as it requires to setup connection to a real kafka broker
+        context.addComponent("kafka", context.getComponent("stub"))
+
+        loadBindings('''
+                apiVersion: camel.apache.org/v1alpha1
+                kind: KameletBinding
+                metadata:
+                  name: timer-event-source                  
+                spec:
+                  source:
+                    ref:
+                      kind: Kamelet
+                      apiVersion: camel.apache.org/v1
+                      name: timer-source
+                    properties:
+                      message: "Hello world!"
+                  sink:
+                    ref:
+                      kind: KafkaTopic
+                      apiVersion: kafka.strimzi.io/v1beta1
+                      name: my-topic
+            ''')
+        then:
+        context.routeDefinitions.size() == 2
+
+        with (context.routeDefinitions[0]) {
+            routeId == 'timer-event-source'
+            input.endpointUri == 'kamelet:timer-source?message=Hello+world%21'
+            outputs.size() == 1
+            with (outputs[0], ToDefinition) {
+                endpointUri == 'kafka:my-topic'
+            }
+        }
+    }
 
 }
