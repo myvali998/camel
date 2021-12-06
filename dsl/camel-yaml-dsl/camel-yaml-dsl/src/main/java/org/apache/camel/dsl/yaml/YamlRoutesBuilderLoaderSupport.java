@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.dsl.support.RouteBuilderLoaderSupport;
@@ -138,12 +139,16 @@ public abstract class YamlRoutesBuilderLoaderSupport extends RouteBuilderLoaderS
     protected abstract RouteBuilder builder(Node node);
 
     protected boolean anyTupleMatches(List<NodeTuple> list, String aKey, String aValue) {
+        return anyTupleMatches(list, aKey, Predicate.isEqual(aValue));
+    }
+
+    protected boolean anyTupleMatches(List<NodeTuple> list, String aKey, Predicate<String> predicate) {
         for (NodeTuple tuple : list) {
             final String key = asText(tuple.getKeyNode());
             final Node val = tuple.getValueNode();
             if (Objects.equals(aKey, key) && NodeType.SCALAR.equals(val.getNodeType())) {
                 String value = asText(tuple.getValueNode());
-                if (Objects.equals(aValue, value)) {
+                if (predicate.test(value)) {
                     return true;
                 }
             }

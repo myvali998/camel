@@ -54,9 +54,10 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
     public static final String EXTENSION = "yaml";
 
     // API versions for Camel-K Integration and Kamelet Binding
+    // we are lenient so lets just assume we can work with any of the v1 even if they evolve
     private static final String INTEGRATION_VERSION = "camel.apache.org/v1";
-    private static final String BINDING_VERSION = "camel.apache.org/v1alpha1";
-    private static final String STRIMZI_VERSION = "kafka.strimzi.io/v1beta2";
+    private static final String BINDING_VERSION = "camel.apache.org/v1";
+    private static final String STRIMZI_VERSION = "kafka.strimzi.io/v1";
 
     public YamlRoutesBuilderLoader() {
         super(EXTENSION);
@@ -159,10 +160,10 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
         if (Objects.equals(root.getNodeType(), NodeType.MAPPING)) {
             final MappingNode mn = YamlDeserializerSupport.asMappingNode(root);
             // camel-k: integration
-            boolean integration = anyTupleMatches(mn.getValue(), "apiVersion", INTEGRATION_VERSION) &&
+            boolean integration = anyTupleMatches(mn.getValue(), "apiVersion", v -> v.startsWith(INTEGRATION_VERSION)) &&
                     anyTupleMatches(mn.getValue(), "kind", "Integration");
             // camel-k: kamelet binding are still at v1alpha1
-            boolean binding = anyTupleMatches(mn.getValue(), "apiVersion", BINDING_VERSION) &&
+            boolean binding = anyTupleMatches(mn.getValue(), "apiVersion", v -> v.startsWith(BINDING_VERSION)) &&
                     anyTupleMatches(mn.getValue(), "kind", "KameletBinding");
             if (integration) {
                 target = preConfigureIntegration(root, target);
@@ -239,8 +240,9 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
 
         // extract uri is different if kamelet or not
         boolean kamelet = mn != null && anyTupleMatches(mn.getValue(), "kind", "Kamelet");
-        boolean strimzi = !kamelet && mn != null && anyTupleMatches(mn.getValue(), "apiVersion", STRIMZI_VERSION)
-                && anyTupleMatches(mn.getValue(), "kind", "KafkaTopic");
+        boolean strimzi
+                = !kamelet && mn != null && anyTupleMatches(mn.getValue(), "apiVersion", v -> v.startsWith(STRIMZI_VERSION))
+                        && anyTupleMatches(mn.getValue(), "kind", "KafkaTopic");
         String uri;
         if (kamelet || strimzi) {
             uri = extractTupleValue(mn.getValue(), "name");
