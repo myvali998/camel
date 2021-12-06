@@ -262,7 +262,7 @@ class KameletBindingLoaderTest extends YamlTestSupport {
                   sink:
                     ref:
                       kind: KafkaTopic
-                      apiVersion: kafka.strimzi.io/v1beta1
+                      apiVersion: kafka.strimzi.io/v1beta2
                       name: my-topic
             ''')
         then:

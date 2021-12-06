@@ -56,7 +56,7 @@ public class YamlRoutesBuilderLoader extends YamlRoutesBuilderLoaderSupport {
     // API versions for Camel-K Integration and Kamelet Binding
     private static final String INTEGRATION_VERSION = "camel.apache.org/v1";
     private static final String BINDING_VERSION = "camel.apache.org/v1alpha1";
-    private static final String STRIMZI_VERSION = "kafka.strimzi.io/v1beta1";
+    private static final String STRIMZI_VERSION = "kafka.strimzi.io/v1beta2";
 
     public YamlRoutesBuilderLoader() {
         super(EXTENSION);
